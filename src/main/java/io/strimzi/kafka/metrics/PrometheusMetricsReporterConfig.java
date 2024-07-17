@@ -6,6 +6,7 @@ package io.strimzi.kafka.metrics;
 
 import io.prometheus.metrics.exporter.httpserver.HTTPServer;
 import io.prometheus.metrics.model.registry.PrometheusRegistry;
+import io.prometheus.metrics.model.snapshots.Labels;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigException;
@@ -14,12 +15,12 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.BindException;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
 * Configuration for the PrometheusMetricsReporter implementation.
@@ -60,12 +61,24 @@ public class PrometheusMetricsReporterConfig extends AbstractConfig {
      * Default value for the allowlist configuration.
      */
     public static final String ALLOWLIST_CONFIG_DEFAULT = ".*";
-    private static final String ALLOWLIST_CONFIG_DOC = "A comma separated list of regex patterns to specify the metrics to collect.";
+    private static final String ALLOWLIST_CONFIG_DOC = "A list of regex patterns to specify the metrics to collect.";
+
+    /**
+     * Configuration key for the separator for the allowlist of metrics to collect.
+     */
+    public static final String ALLOWLIST_SEPARATOR_CONFIG = CONFIG_PREFIX + "allowlist.separator";
+
+    /**
+     * Default value for the separator of the allowlist configuration.
+     */
+    public static final String ALLOWLIST_SEPARATOR_CONFIG_DEFAULT = ";";
+    private static final String ALLOWLIST_SEPARATOR_CONFIG_DOC = "The separator to used to split the allowlist.";
 
     private static final ConfigDef CONFIG_DEF = new ConfigDef()
             .define(LISTENER_CONFIG, ConfigDef.Type.STRING, LISTENER_CONFIG_DEFAULT, new ListenerValidator(), ConfigDef.Importance.HIGH, LISTENER_CONFIG_DOC)
-            .define(ALLOWLIST_CONFIG, ConfigDef.Type.LIST, ALLOWLIST_CONFIG_DEFAULT, ConfigDef.Importance.HIGH, ALLOWLIST_CONFIG_DOC)
-            .define(LISTENER_ENABLE_CONFIG, ConfigDef.Type.BOOLEAN, LISTENER_ENABLE_CONFIG_DEFAULT, ConfigDef.Importance.HIGH, LISTENER_ENABLE_CONFIG_DOC);
+            .define(ALLOWLIST_CONFIG, ConfigDef.Type.STRING, ALLOWLIST_CONFIG_DEFAULT, ConfigDef.Importance.HIGH, ALLOWLIST_CONFIG_DOC)
+            .define(LISTENER_ENABLE_CONFIG, ConfigDef.Type.BOOLEAN, LISTENER_ENABLE_CONFIG_DEFAULT, ConfigDef.Importance.HIGH, LISTENER_ENABLE_CONFIG_DOC)
+            .define(ALLOWLIST_SEPARATOR_CONFIG, ConfigDef.Type.STRING, ALLOWLIST_SEPARATOR_CONFIG_DEFAULT, ConfigDef.Importance.MEDIUM, ALLOWLIST_SEPARATOR_CONFIG_DOC);
 
     private final Listener listener;
     private final boolean listenerEnabled;
@@ -81,7 +94,7 @@ public class PrometheusMetricsReporterConfig extends AbstractConfig {
     public PrometheusMetricsReporterConfig(Map<?, ?> props, PrometheusRegistry registry) {
         super(CONFIG_DEF, props);
         this.listener = Listener.parseListener(getString(LISTENER_CONFIG));
-        this.allowlist = compileAllowlist(getList(ALLOWLIST_CONFIG));
+        this.allowlist = compileAllowlist(getString(ALLOWLIST_CONFIG), getString(ALLOWLIST_SEPARATOR_CONFIG));
         this.listenerEnabled = getBoolean(LISTENER_ENABLE_CONFIG);
         this.registry = registry;
     }
@@ -90,14 +103,18 @@ public class PrometheusMetricsReporterConfig extends AbstractConfig {
      * Check if a metric is allowed.
      *
      * @param name the name of the metric.
+     * @param labels the name associated with the metric
      * @return true if the metric is allowed, false otherwise.
      */
-    public boolean isAllowed(String name) {
-        return allowlist.matcher(name).matches();
+    public boolean isAllowed(String name, Labels labels) {
+        String labelsString = labels.stream().map(l -> l.getName() + "=\"" + l.getValue() + "\"").collect(Collectors.joining(","));
+        String serializedMetricName = name + "{" + labelsString + "}";
+        return allowlist.matcher(serializedMetricName).matches();
     }
 
-    private Pattern compileAllowlist(List<String> allowlist) {
-        String joined = String.join("|", allowlist);
+    private Pattern compileAllowlist(String allowlist, String separator) {
+        String[] allowlistEntries = allowlist.split(separator);
+        String joined = String.join("|", allowlistEntries);
         return Pattern.compile(joined);
     }
 

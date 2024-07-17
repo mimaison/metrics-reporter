@@ -6,6 +6,7 @@ package io.strimzi.kafka.metrics;
 
 import io.prometheus.metrics.exporter.httpserver.HTTPServer;
 import io.prometheus.metrics.model.registry.PrometheusRegistry;
+import io.prometheus.metrics.model.snapshots.Labels;
 import org.apache.kafka.common.config.ConfigException;
 import org.junit.jupiter.api.Test;
 
@@ -25,7 +26,7 @@ public class PrometheusMetricsReporterConfigTest {
     public void testDefaults() {
         PrometheusMetricsReporterConfig config = new PrometheusMetricsReporterConfig(Collections.emptyMap(), new PrometheusRegistry());
         assertEquals(PrometheusMetricsReporterConfig.LISTENER_CONFIG_DEFAULT, config.listener());
-        assertTrue(config.isAllowed("random_name"));
+        assertTrue(config.isAllowed("random_name", Labels.EMPTY));
     }
 
     @Test
@@ -36,19 +37,19 @@ public class PrometheusMetricsReporterConfigTest {
         PrometheusMetricsReporterConfig config = new PrometheusMetricsReporterConfig(props, new PrometheusRegistry());
 
         assertEquals("http://:0", config.listener());
-        assertFalse(config.isAllowed("random_name"));
-        assertTrue(config.isAllowed("kafka_server_metric"));
+        assertFalse(config.isAllowed("random_name", Labels.EMPTY));
+        assertTrue(config.isAllowed("kafka_server_metric", Labels.EMPTY));
     }
 
     @Test
     public void testAllowList() {
         Map<String, String> props = new HashMap<>();
-        props.put(PrometheusMetricsReporterConfig.ALLOWLIST_CONFIG, "kafka_server.*,kafka_network.*");
+        props.put(PrometheusMetricsReporterConfig.ALLOWLIST_CONFIG, "kafka_server.*;kafka_network.*");
         PrometheusMetricsReporterConfig config = new PrometheusMetricsReporterConfig(props, new PrometheusRegistry());
 
-        assertFalse(config.isAllowed("random_name"));
-        assertTrue(config.isAllowed("kafka_server_metric"));
-        assertTrue(config.isAllowed("kafka_network_metric"));
+        assertFalse(config.isAllowed("random_name", Labels.EMPTY));
+        assertTrue(config.isAllowed("kafka_server_metric", Labels.EMPTY));
+        assertTrue(config.isAllowed("kafka_network_metric", Labels.EMPTY));
     }
 
     @Test

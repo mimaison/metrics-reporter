@@ -79,14 +79,12 @@ public class YammerMetricsCollector implements MultiCollector {
                 LOG.trace("Collecting Yammer metric {}", metricName);
 
                 String prometheusMetricName = metricName(metricName);
-                // TODO Filtering should take labels into account
-                if (!config.isAllowed(prometheusMetricName)) {
+                Labels labels = labelsFromScope(metricName.getScope(), prometheusMetricName);
+                if (!config.isAllowed(prometheusMetricName, labels)) {
                     LOG.info("Yammer metric {} is not allowed", prometheusMetricName);
                     continue;
                 }
                 LOG.info("Yammer metric {} is allowed", prometheusMetricName);
-                Labels labels = labelsFromScope(metricName.getScope(), prometheusMetricName);
-                LOG.info("labels {}", labels);
 
                 if (metric instanceof Counter) {
                     Counter counter = (Counter) metric;
@@ -136,11 +134,11 @@ public class YammerMetricsCollector implements MultiCollector {
     }
 
     private static String metricName(MetricName metricName) {
-        String metricNameStr = PrometheusNaming.sanitizeMetricName(
+        String metricNameStr = PrometheusNaming.prometheusName(PrometheusNaming.sanitizeMetricName(
                 "kafka_server_" +
                 metricName.getGroup() + '_' +
                 metricName.getType() + '_' +
-                metricName.getName()).toLowerCase(Locale.ROOT);
+                metricName.getName())).toLowerCase(Locale.ROOT);
         LOG.info("metricName group {}, type {}, name {} converted into {}", metricName.getGroup(), metricName.getType(), metricName.getName(), metricNameStr);
         return metricNameStr;
     }

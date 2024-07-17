@@ -18,9 +18,11 @@ import org.apache.kafka.server.metrics.KafkaYammerMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -40,6 +42,10 @@ public class YammerMetricsCollectorTest {
             labelsBuilder.label(tag.getKey(), tag.getValue());
         }
         labels = labelsBuilder.build();
+        Set<MetricName> metrics = KafkaYammerMetrics.defaultRegistry().allMetrics().keySet();
+        for (MetricName metricName : metrics) {
+            KafkaYammerMetrics.defaultRegistry().removeMetric(metricName);
+        }
     }
 
     @Test
@@ -115,6 +121,35 @@ public class YammerMetricsCollectorTest {
     }
 
     @Test
+    public void testCollectWithLabels() {
+        Map<String, String> props = new HashMap<>();
+        props.put(PrometheusMetricsReporterConfig.ALLOWLIST_CONFIG, "kafka_server_group_type_name\\{k1=\"v1\".*");
+        PrometheusMetricsReporterConfig config = new PrometheusMetricsReporterConfig(props, new PrometheusRegistry());
+        YammerMetricsCollector collector = new YammerMetricsCollector(config);
+
+        MetricSnapshots metrics = collector.collect();
+        assertEquals(0, metrics.size());
+
+        // Add a metric that matches the allowlist
+        newCounter("group", "type", "name");
+        metrics = collector.collect();
+        assertEquals(1, metrics.size());
+        assertEquals(1, metrics.get(0).getDataPoints().size());
+
+        // Add a second metric that matches the allowlist
+        newCounter("group", "type", "name", Collections.singletonMap("k3", "v3"));
+        metrics = collector.collect();
+        assertEquals(1, metrics.size());
+        assertEquals(2, metrics.get(0).getDataPoints().size());
+
+        // Add a metric that does not match the allowlist due to different labels
+        newCounter("group", "type", "name", Collections.singletonMap("k1", "v2"));
+        metrics = collector.collect();
+        assertEquals(1, metrics.size());
+        assertEquals(2, metrics.get(0).getDataPoints().size());
+    }
+
+    @Test
     public void testLabelsFromScope() {
         assertEquals(Labels.of("k1", "v1", "k2", "v2"), YammerMetricsCollector.labelsFromScope("k1.v1.k2.v2", "name"));
         assertEquals(Labels.EMPTY, YammerMetricsCollector.labelsFromScope(null, "name"));
@@ -129,7 +164,13 @@ public class YammerMetricsCollectorTest {
     }
 
     public Counter newCounter(String group, String type, String name) {
-        MetricName metricName = KafkaYammerMetrics.getMetricName(group, type, name, tagsMap);
+        return newCounter(group, type, name, Collections.emptyMap());
+    }
+
+    public Counter newCounter(String group, String type, String name, Map<String, String> extraTags) {
+        LinkedHashMap<String, String> tags = new LinkedHashMap<>(tagsMap);
+        tags.putAll(extraTags);
+        MetricName metricName = KafkaYammerMetrics.getMetricName(group, type, name, tags);
         return KafkaYammerMetrics.defaultRegistry().newCounter(metricName);
     }
 

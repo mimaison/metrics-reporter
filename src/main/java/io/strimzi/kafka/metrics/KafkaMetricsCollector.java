@@ -90,13 +90,12 @@ public class KafkaMetricsCollector implements MultiCollector {
             LOG.trace("Collecting Kafka metric {}", metricName);
 
             String prometheusMetricName = metricName(metricName);
-            // TODO Filtering should take labels into account
-            if (!config.isAllowed(prometheusMetricName)) {
+            Labels labels = labelsFromTags(metricName.tags(), metricName.name());
+            if (!config.isAllowed(prometheusMetricName, labels)) {
                 LOG.info("Kafka metric {} is not allowed", prometheusMetricName);
                 continue;
             }
             LOG.info("Kafka metric {} is allowed", prometheusMetricName);
-            Labels labels = labelsFromTags(metricName.tags(), metricName.name());
 
             Object valueObj = kafkaMetric.metricValue();
             if (valueObj instanceof Number) {
@@ -119,8 +118,8 @@ public class KafkaMetricsCollector implements MultiCollector {
     }
 
     private String metricName(MetricName metricName) {
-        return PrometheusNaming
-                .sanitizeMetricName(prefix + '_' + metricName.group() + '_' + metricName.name())
+        return PrometheusNaming.prometheusName(PrometheusNaming
+                .sanitizeMetricName(prefix + '_' + metricName.group() + '_' + metricName.name()))
                 .toLowerCase(Locale.ROOT);
     }
 

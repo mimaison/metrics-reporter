@@ -20,6 +20,7 @@ import org.apache.kafka.common.utils.Time;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -110,6 +111,39 @@ public class KafkaMetricsCollectorTest {
     }
 
     @Test
+    public void testCollectWithLabels() {
+        Map<String, String> props = new HashMap<>();
+        props.put(PrometheusMetricsReporterConfig.ALLOWLIST_CONFIG, "kafka_server_group_name\\{k1=\"v1\".*");
+        PrometheusMetricsReporterConfig config = new PrometheusMetricsReporterConfig(props, new PrometheusRegistry());
+        KafkaMetricsCollector collector = new KafkaMetricsCollector(config);
+        collector.setPrefix("kafka.server");
+
+        MetricSnapshots metrics = collector.collect();
+        assertEquals(0, metrics.size());
+
+        // Add a metric that matches the allowlist
+        KafkaMetric metric = buildMetric("name", "group", 1.0);
+        collector.addMetric(metric);
+        metrics = collector.collect();
+        assertEquals(1, metrics.size());
+        assertEquals(1, metrics.get(0).getDataPoints().size());
+
+        // Add a second metric that matches the allowlist
+        metric = buildMetric("name", "group", 1.0, Collections.singletonMap("k3", "v3"));
+        collector.addMetric(metric);
+        metrics = collector.collect();
+        assertEquals(1, metrics.size());
+        assertEquals(2, metrics.get(0).getDataPoints().size());
+
+        // Add a metric that does not match the allowlist due to different labels
+        metric = buildMetric("name", "group", 1.0, Collections.singletonMap("k1", "v2"));
+        collector.addMetric(metric);
+        metrics = collector.collect();
+        assertEquals(1, metrics.size());
+        assertEquals(2, metrics.get(0).getDataPoints().size());
+    }
+
+    @Test
     public void testLabelsFromTags() {
         Map<String, String> tags = new LinkedHashMap<>();
         tags.put("k-1", "v1");
@@ -132,10 +166,16 @@ public class KafkaMetricsCollectorTest {
     }
 
     private KafkaMetric buildMetric(String name, String group, double value) {
+        return buildMetric(name, group, value, Collections.emptyMap());
+    }
+
+    private KafkaMetric buildMetric(String name, String group, double value, Map<String, String> extraTags) {
+        Map<String, String> tags = new HashMap<>(tagsMap);
+        tags.putAll(extraTags);
         Measurable measurable = (config, now) -> value;
         return new KafkaMetric(
                 new Object(),
-                new MetricName(name, group, "", tagsMap),
+                new MetricName(name, group, "", tags),
                 measurable,
                 metricConfig,
                 time);
