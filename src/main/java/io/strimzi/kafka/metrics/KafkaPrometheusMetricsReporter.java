@@ -17,7 +17,6 @@ import org.apache.kafka.common.metrics.MetricsReporter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -27,9 +26,11 @@ import java.util.Set;
  * MetricsReporter implementation that expose Kafka metrics in the Prometheus format.
  * This can be used by Kafka brokers and clients.
  */
-public class KafkaPrometheusMetricsReporter implements MetricsReporter {
+public class KafkaPrometheusMetricsReporter extends AbstractReporter implements MetricsReporter  {
 
     private static final Logger LOG = LoggerFactory.getLogger(KafkaPrometheusMetricsReporter.class);
+
+    private static final String BROKER_PREFIX = "kafka_server";
 
     private final PrometheusRegistry registry;
     private final KafkaCollector kafkaCollector;
@@ -39,6 +40,7 @@ public class KafkaPrometheusMetricsReporter implements MetricsReporter {
     private Optional<HttpServers.ServerCounter> httpServer;
     @SuppressFBWarnings({"UWF_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR"}) // This field is initialized in the contextChange method
     private String prefix;
+    private Map<String, ?> configs;
 
     /**
      * Constructor
@@ -46,19 +48,19 @@ public class KafkaPrometheusMetricsReporter implements MetricsReporter {
     public KafkaPrometheusMetricsReporter() {
         registry = PrometheusRegistry.defaultRegistry;
         kafkaCollector = KafkaCollector.getCollector(PrometheusCollector.register(registry));
+        kafkaCollector.addReporter(this);
     }
 
     // for testing
     KafkaPrometheusMetricsReporter(PrometheusRegistry registry, KafkaCollector kafkaCollector) {
         this.registry = registry;
         this.kafkaCollector = kafkaCollector;
+        this.kafkaCollector.addReporter(this);
     }
 
     @Override
     public void configure(Map<String, ?> map) {
-        config = new PrometheusMetricsReporterConfig(map, registry);
-        httpServer = config.startHttpServer();
-        LOG.debug("KafkaPrometheusMetricsReporter configured with {}", config);
+        configs = map;
     }
 
     @Override
@@ -68,43 +70,56 @@ public class KafkaPrometheusMetricsReporter implements MetricsReporter {
         }
     }
 
+    @Override
     public void metricChange(KafkaMetric metric) {
         String prometheusName = KafkaMetricWrapper.prometheusName(prefix, metric.metricName());
-        if (!config.isAllowed(prometheusName)) {
-            LOG.trace("Ignoring metric {} as it does not match the allowlist", prometheusName);
-        } else {
-            MetricWrapper metricWrapper = new KafkaMetricWrapper(prometheusName, metric, metric.metricName().name());
-            kafkaCollector.addMetric(metric.metricName(), metricWrapper);
-        }
+        MetricWrapper metricWrapper = new KafkaMetricWrapper(prometheusName, metric, metric.metricName().name());
+        addMetric(metric, metricWrapper);
     }
 
     @Override
     public void metricRemoval(KafkaMetric metric) {
-        kafkaCollector.removeMetric(metric.metricName());
+        removeMetric(metric);
     }
 
     @Override
     public void close() {
+        kafkaCollector.removeReporter(this);
         httpServer.ifPresent(HttpServers::release);
     }
 
     @Override
     public void reconfigure(Map<String, ?> configs) {
+        config.updateAllowlist(configs);
     }
 
     @Override
     public void validateReconfiguration(Map<String, ?> configs) throws ConfigException {
+        new PrometheusMetricsReporterConfig(configs, null);
     }
 
     @Override
     public Set<String> reconfigurableConfigs() {
-        return Collections.emptySet();
+        return PrometheusMetricsReporterConfig.RECONFIGURABLES;
     }
 
     @Override
     public void contextChange(MetricsContext metricsContext) {
         String prefix = metricsContext.contextLabels().get(MetricsContext.NAMESPACE);
         this.prefix = PrometheusNaming.prometheusName(prefix);
+        if (BROKER_PREFIX.equals(this.prefix)) {
+            config = PrometheusMetricsReporterConfig.getBrokerInstance(configs, registry);
+            config.addListener(this);
+        } else {
+            config = new PrometheusMetricsReporterConfig(configs, registry);
+        }
+        httpServer = config.startHttpServer();
+        LOG.debug("KafkaPrometheusMetricsReporter configured with {}", config);
+    }
+
+    @Override
+    protected PrometheusMetricsReporterConfig config() {
+        return config;
     }
 
     // for testing

@@ -43,6 +43,7 @@ public class KafkaPrometheusMetricsReporterTest {
     public void testLifeCycle() throws Exception {
         KafkaPrometheusMetricsReporter reporter = new KafkaPrometheusMetricsReporter(registry, kafkaCollector);
         configs.put(PrometheusMetricsReporterConfig.ALLOWLIST_CONFIG, "kafka_server_group_name.*");
+        configs.put("node.id", "0");
         reporter.configure(configs);
         reporter.contextChange(new KafkaMetricsContext("kafka.server"));
 
@@ -79,6 +80,7 @@ public class KafkaPrometheusMetricsReporterTest {
     public void testMultipleReporters() throws Exception {
         KafkaPrometheusMetricsReporter reporter1 = new KafkaPrometheusMetricsReporter(registry, kafkaCollector);
         reporter1.configure(configs);
+        configs.put("node.id", "1");
         reporter1.contextChange(new KafkaMetricsContext("kafka.server"));
         Optional<Integer> port1 = reporter1.getPort();
         assertTrue(port1.isPresent());
@@ -86,6 +88,7 @@ public class KafkaPrometheusMetricsReporterTest {
 
         KafkaPrometheusMetricsReporter reporter2 = new KafkaPrometheusMetricsReporter(registry, kafkaCollector);
         reporter2.configure(configs);
+        configs.put("node.id", "1");
         reporter2.contextChange(new KafkaMetricsContext("kafka.server"));
         Optional<Integer> port2 = reporter1.getPort();
         assertTrue(port2.isPresent());
@@ -107,4 +110,38 @@ public class KafkaPrometheusMetricsReporterTest {
         reporter2.close();
     }
 
+    @Test
+    public void testReconfigure() throws Exception {
+        KafkaPrometheusMetricsReporter reporter = new KafkaPrometheusMetricsReporter(registry, kafkaCollector);
+        configs.put(PrometheusMetricsReporterConfig.ALLOWLIST_CONFIG, "kafka_server_group_name.*");
+        configs.put("node.id", "2");
+        reporter.configure(configs);
+        reporter.contextChange(new KafkaMetricsContext("kafka.server"));
+
+        int port = reporter.getPort().orElseThrow();
+        assertEquals(0, getMetrics(port).size());
+
+        // Adding a metric not matching the allowlist
+        KafkaMetric metric1 = newKafkaMetric("other", "group", (config, now) -> 0, labels);
+        reporter.init(Collections.singletonList(metric1));
+        List<String> metrics = getMetrics(port);
+        assertEquals(0, metrics.size());
+
+        // Adding a metric matching the allowlist
+        KafkaMetric metric2 = newKafkaMetric("name", "group", (config, now) -> 0, labels);
+        reporter.metricChange(metric2);
+        metrics = getMetrics(port);
+        assertEquals(1, metrics.size());
+        assertTrue(metrics.get(0).contains("group_name"));
+
+        // Update the allowlist to match the first metric
+        configs.put(PrometheusMetricsReporterConfig.ALLOWLIST_CONFIG, "kafka_server_group_other.*");
+        reporter.reconfigure(configs);
+
+        metrics = getMetrics(port);
+        assertEquals(1, metrics.size());
+        assertTrue(metrics.get(0).contains("group_other"));
+
+        reporter.close();
+    }
 }

@@ -14,9 +14,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
@@ -27,6 +31,9 @@ import java.util.stream.Collectors;
 public class PrometheusMetricsReporterConfig extends AbstractConfig {
 
     private static final Logger LOG = LoggerFactory.getLogger(PrometheusMetricsReporterConfig.class);
+
+    private static final Map<String, PrometheusMetricsReporterConfig> BROKER_INSTANCES = new HashMap<>();
+
     private static final String CONFIG_PREFIX = "prometheus.metrics.reporter.";
 
     /**
@@ -67,10 +74,21 @@ public class PrometheusMetricsReporterConfig extends AbstractConfig {
             .define(ALLOWLIST_CONFIG, ConfigDef.Type.LIST, ALLOWLIST_CONFIG_DEFAULT, ConfigDef.Importance.HIGH, ALLOWLIST_CONFIG_DOC)
             .define(LISTENER_ENABLE_CONFIG, ConfigDef.Type.BOOLEAN, LISTENER_ENABLE_CONFIG_DEFAULT, ConfigDef.Importance.HIGH, LISTENER_ENABLE_CONFIG_DOC);
 
+    /**
+     * The list of configurations that are reconfigurable at runtime.
+     */
+    public static final Set<String> RECONFIGURABLES = Collections.singleton(ALLOWLIST_CONFIG);
+
     private final Listener listener;
     private final boolean listenerEnabled;
-    private final Pattern allowlist;
     private final PrometheusRegistry registry;
+    private final List<AbstractReporter> listeners;
+    private Pattern allowlist;
+
+    public static PrometheusMetricsReporterConfig getBrokerInstance(Map<?, ?> props, PrometheusRegistry registry) {
+        String brokerId = (String) props.get("node.id");
+        return BROKER_INSTANCES.computeIfAbsent(brokerId, key -> new PrometheusMetricsReporterConfig(props, registry));
+    }
 
     /**
      * Constructor.
@@ -84,6 +102,11 @@ public class PrometheusMetricsReporterConfig extends AbstractConfig {
         this.allowlist = compileAllowlist(getList(ALLOWLIST_CONFIG));
         this.listenerEnabled = getBoolean(LISTENER_ENABLE_CONFIG);
         this.registry = registry;
+        this.listeners = new ArrayList<>();
+    }
+
+    public void addListener(AbstractReporter reporter) {
+        listeners.add(reporter);
     }
 
     /**
@@ -94,6 +117,18 @@ public class PrometheusMetricsReporterConfig extends AbstractConfig {
      */
     public boolean isAllowed(String name) {
         return allowlist.matcher(name).matches();
+    }
+
+    /**
+     * Update the allowlist
+     * @param props the configuration properties.
+     */
+    public void updateAllowlist(Map<?, ?> props) {
+        AbstractConfig abstractConfig = new AbstractConfig(CONFIG_DEF, props, false);
+        this.allowlist = compileAllowlist(abstractConfig.getList(ALLOWLIST_CONFIG));
+        for (AbstractReporter reporter : listeners) {
+            reporter.update();
+        }
     }
 
     private Pattern compileAllowlist(List<String> allowlist) {

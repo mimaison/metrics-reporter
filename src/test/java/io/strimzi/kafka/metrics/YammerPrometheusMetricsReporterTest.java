@@ -43,6 +43,7 @@ public class YammerPrometheusMetricsReporterTest {
     public void testLifeCycle() throws Exception {
         YammerPrometheusMetricsReporter reporter = new YammerPrometheusMetricsReporter(registry, collector);
         configs.put(PrometheusMetricsReporterConfig.ALLOWLIST_CONFIG, "group_type.*");
+        configs.put("node.id", "10");
         reporter.init(new VerifiableProperties(configs));
 
         HttpServers.ServerCounter httpServer = null;

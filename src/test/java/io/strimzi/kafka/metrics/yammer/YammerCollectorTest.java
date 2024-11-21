@@ -8,10 +8,14 @@ import com.yammer.metrics.core.Gauge;
 import com.yammer.metrics.core.MetricName;
 import io.prometheus.metrics.model.snapshots.Labels;
 import io.prometheus.metrics.model.snapshots.MetricSnapshot;
+import io.strimzi.kafka.metrics.AbstractReporter;
 import io.strimzi.kafka.metrics.MetricWrapper;
+import io.strimzi.kafka.metrics.PrometheusMetricsReporterConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -25,6 +29,8 @@ public class YammerCollectorTest {
 
     private Labels labels;
     private String scope;
+    private List<MetricWrapper> metricsWrappers;
+    private YammerCollector collector;
 
     @BeforeEach
     public void setup() {
@@ -35,12 +41,24 @@ public class YammerCollectorTest {
             scope += "k" + i + ".v" + i + ".";
         }
         labels = labelsBuilder.build();
+        AbstractReporter reporter = new AbstractReporter() {
+            @Override
+            protected PrometheusMetricsReporterConfig config() {
+                return null;
+            }
+
+            @Override
+            public Collection<MetricWrapper> allowedMetrics() {
+                return metricsWrappers;
+            }
+        };
+        metricsWrappers = new ArrayList<>();
+        collector = new YammerCollector();
+        collector.addReporter(reporter);
     }
 
     @Test
     public void testCollectYammerMetrics() {
-        YammerCollector collector = new YammerCollector();
-
         List<? extends MetricSnapshot<?>> metrics = collector.collect();
         assertEquals(0, metrics.size());
 
@@ -48,7 +66,7 @@ public class YammerCollectorTest {
         AtomicInteger value = new AtomicInteger(1);
         MetricName metricName = new MetricName("group", "type", "name", scope);
         MetricWrapper metricWrapper = newYammerMetricWrapper(metricName, value::get);
-        collector.addMetric(metricName, metricWrapper);
+        metricsWrappers.add(metricWrapper);
 
         metrics = collector.collect();
         assertEquals(1, metrics.size());
@@ -61,22 +79,20 @@ public class YammerCollectorTest {
         assertGaugeSnapshot(metrics.get(0), 3, labels);
 
         // Removing the metric
-        collector.removeMetric(metricName);
+        metricsWrappers.remove(metricWrapper);
         metrics = collector.collect();
         assertEquals(0, metrics.size());
     }
 
     @Test
     public void testCollectNonNumericYammerMetrics() {
-        YammerCollector collector = new YammerCollector();
-
         List<? extends MetricSnapshot<?>> metrics = collector.collect();
         assertEquals(0, metrics.size());
 
         String nonNumericValue = "value";
         MetricName metricName = new MetricName("group", "type", "name", scope);
         MetricWrapper metricWrapper = newYammerMetricWrapper(metricName, () -> nonNumericValue);
-        collector.addMetric(metricName, metricWrapper);
+        metricsWrappers.add(metricWrapper);
         metrics = collector.collect();
 
         assertEquals(1, metrics.size());

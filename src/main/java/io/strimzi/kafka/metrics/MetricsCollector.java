@@ -13,6 +13,12 @@ import java.util.List;
  */
 public interface MetricsCollector {
 
+    void addReporter(AbstractReporter reporter);
+
+    default void removeReporter(AbstractReporter reporter) {
+
+    }
+
     /**
      * Collect all the metrics added to this Collector
      *

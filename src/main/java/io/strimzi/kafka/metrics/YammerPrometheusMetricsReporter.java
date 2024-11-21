@@ -24,7 +24,7 @@ import java.util.Arrays;
 /**
  * KafkaMetricsReporter to export Kafka broker metrics in the Prometheus format.
  */
-public class YammerPrometheusMetricsReporter implements KafkaMetricsReporter, MetricsRegistryListener {
+public class YammerPrometheusMetricsReporter extends AbstractReporter implements KafkaMetricsReporter, MetricsRegistryListener {
 
     private static final Logger LOG = LoggerFactory.getLogger(YammerPrometheusMetricsReporter.class);
 
@@ -39,17 +39,20 @@ public class YammerPrometheusMetricsReporter implements KafkaMetricsReporter, Me
     public YammerPrometheusMetricsReporter() {
         registry = PrometheusRegistry.defaultRegistry;
         yammerCollector = YammerCollector.getCollector(PrometheusCollector.register(registry));
+        yammerCollector.addReporter(this);
     }
 
     // for testing
     YammerPrometheusMetricsReporter(PrometheusRegistry registry, PrometheusCollector prometheusCollector) {
         this.registry = registry;
         yammerCollector = YammerCollector.getCollector(prometheusCollector);
+        yammerCollector.addReporter(this);
     }
 
     @Override
     public void init(VerifiableProperties props) {
-        config = new PrometheusMetricsReporterConfig(props.props(), registry);
+        config = PrometheusMetricsReporterConfig.getBrokerInstance(props.props(), registry);
+        config.addListener(this);
         for (MetricsRegistry yammerRegistry : Arrays.asList(KafkaYammerMetrics.defaultRegistry(), Metrics.defaultRegistry())) {
             yammerRegistry.addListener(this);
         }
@@ -59,16 +62,17 @@ public class YammerPrometheusMetricsReporter implements KafkaMetricsReporter, Me
     @Override
     public void onMetricAdded(MetricName name, Metric metric) {
         String prometheusName = YammerMetricWrapper.prometheusName(name);
-        if (!config.isAllowed(prometheusName)) {
-            LOG.trace("Ignoring metric {} as it does not match the allowlist", prometheusName);
-        } else {
-            MetricWrapper metricWrapper = new YammerMetricWrapper(prometheusName, name.getScope(), metric, name.getName());
-            yammerCollector.addMetric(name, metricWrapper);
-        }
+        MetricWrapper metricWrapper = new YammerMetricWrapper(prometheusName, name.getScope(), metric, name.getName());
+        addMetric(name, metricWrapper);
     }
 
     @Override
     public void onMetricRemoved(MetricName name) {
-        yammerCollector.removeMetric(name);
+        removeMetric(name);
+    }
+
+    @Override
+    protected PrometheusMetricsReporterConfig config() {
+        return config;
     }
 }

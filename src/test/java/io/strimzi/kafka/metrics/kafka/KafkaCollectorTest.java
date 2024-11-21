@@ -6,13 +6,17 @@ package io.strimzi.kafka.metrics.kafka;
 
 import io.prometheus.metrics.model.snapshots.Labels;
 import io.prometheus.metrics.model.snapshots.MetricSnapshot;
+import io.strimzi.kafka.metrics.AbstractReporter;
 import io.strimzi.kafka.metrics.MetricWrapper;
+import io.strimzi.kafka.metrics.PrometheusMetricsReporterConfig;
 import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.metrics.Gauge;
 import org.apache.kafka.common.metrics.KafkaMetric;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +33,8 @@ public class KafkaCollectorTest {
 
     private Map<String, String> tagsMap;
     private Labels labels;
+    private List<MetricWrapper> metricsWrappers;
+    private KafkaCollector collector;
 
     @BeforeEach
     public void setup() {
@@ -39,12 +45,24 @@ public class KafkaCollectorTest {
             tagsMap.put("k" + i, "v" + i);
         }
         labels = labelsBuilder.build();
+        AbstractReporter reporter = new AbstractReporter() {
+            @Override
+            protected PrometheusMetricsReporterConfig config() {
+                return null;
+            }
+
+            @Override
+            public Collection<MetricWrapper> allowedMetrics() {
+                return metricsWrappers;
+            }
+        };
+        metricsWrappers = new ArrayList<>();
+        collector = new KafkaCollector();
+        collector.addReporter(reporter);
     }
 
     @Test
     public void testCollectKafkaMetrics() {
-        KafkaCollector collector = new KafkaCollector();
-
         List<? extends MetricSnapshot<?>> metrics = collector.collect();
         assertEquals(0, metrics.size());
 
@@ -52,7 +70,7 @@ public class KafkaCollectorTest {
         AtomicInteger value = new AtomicInteger(1);
         MetricName metricName = new MetricName("name", "group", "description", tagsMap);
         MetricWrapper metricWrapper = newKafkaMetricWrapper(metricName, (config, now) -> value.get());
-        collector.addMetric(metricName, metricWrapper);
+        metricsWrappers.add(metricWrapper);
 
         metrics = collector.collect();
         assertEquals(1, metrics.size());
@@ -65,15 +83,13 @@ public class KafkaCollectorTest {
         assertGaugeSnapshot(metrics.get(0), 3, labels);
 
         // Removing a metric
-        collector.removeMetric(metricName);
+        metricsWrappers.remove(metricWrapper);
         metrics = collector.collect();
         assertEquals(0, metrics.size());
     }
 
     @Test
     public void testCollectNonNumericKafkaMetric() {
-        KafkaCollector collector = new KafkaCollector();
-
         List<? extends MetricSnapshot<?>> metrics = collector.collect();
         assertEquals(0, metrics.size());
 
@@ -81,7 +97,7 @@ public class KafkaCollectorTest {
         String nonNumericValue = "myValue";
         MetricName metricName = new MetricName("name", "group", "description", tagsMap);
         MetricWrapper metricWrapper = newKafkaMetricWrapper(metricName, (config, now) -> nonNumericValue);
-        collector.addMetric(metricName, metricWrapper);
+        metricsWrappers.add(metricWrapper);
         metrics = collector.collect();
 
         assertEquals(1, metrics.size());

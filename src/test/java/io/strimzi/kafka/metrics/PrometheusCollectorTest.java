@@ -44,32 +44,45 @@ public class PrometheusCollectorTest {
         PrometheusCollector prometheusCollector = PrometheusCollector.register(registry);
         Labels labels = Labels.of("l1", "v1", "l2", "v2");
         double value = 2.0;
-        prometheusCollector.addCollector(() -> {
-            List<MetricSnapshot<?>> snapshots = new ArrayList<>();
-            snapshots.add(GaugeSnapshot.builder()
-                    .name("gauge")
-                    .dataPoint(DataPointSnapshotBuilder.gaugeDataPoint(labels, value))
-                    .build());
-            snapshots.add(CounterSnapshot.builder()
-                    .name("counter")
-                    .dataPoint(DataPointSnapshotBuilder.counterDataPoint(labels, value))
-                    .build());
-            return snapshots;
+        prometheusCollector.addCollector(new MetricsCollector() {
+            @Override
+            public void addReporter(AbstractReporter reporter) {}
+
+            @Override
+            public List<MetricSnapshot<?>> collect() {
+                List<MetricSnapshot<?>> snapshots = new ArrayList<>();
+                snapshots.add(GaugeSnapshot.builder()
+                        .name("gauge")
+                        .dataPoint(DataPointSnapshotBuilder.gaugeDataPoint(labels, value))
+                        .build());
+                snapshots.add(CounterSnapshot.builder()
+                        .name("counter")
+                        .dataPoint(DataPointSnapshotBuilder.counterDataPoint(labels, value))
+                        .build());
+                return snapshots;
+            }
         });
         int count = 1;
         Quantiles quantiles = Quantiles.of(new Quantile(0.9, value));
         String metricName = "name";
-        prometheusCollector.addCollector(() -> {
-            List<MetricSnapshot<?>> snapshots = new ArrayList<>();
-            snapshots.add(InfoSnapshot.builder()
-                    .name("info")
-                    .dataPoint(DataPointSnapshotBuilder.infoDataPoint(labels, value, metricName))
-                    .build());
-            snapshots.add(SummarySnapshot.builder()
-                    .name("summary")
-                    .dataPoint(DataPointSnapshotBuilder.summaryDataPoint(labels, count, value, quantiles))
-                    .build());
-            return snapshots;
+        prometheusCollector.addCollector(new MetricsCollector() {
+            @Override
+            public void addReporter(AbstractReporter reporter) {
+            }
+
+            @Override
+            public List<MetricSnapshot<?>> collect() {
+                List<MetricSnapshot<?>> snapshots = new ArrayList<>();
+                snapshots.add(InfoSnapshot.builder()
+                        .name("info")
+                        .dataPoint(DataPointSnapshotBuilder.infoDataPoint(labels, value, metricName))
+                        .build());
+                snapshots.add(SummarySnapshot.builder()
+                        .name("summary")
+                        .dataPoint(DataPointSnapshotBuilder.summaryDataPoint(labels, count, value, quantiles))
+                        .build());
+                return snapshots;
+            }
         });
         MetricSnapshots snapshots = prometheusCollector.collect();
         assertEquals(4, snapshots.size());
