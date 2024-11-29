@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.strimzi.kafka.metrics.MetricsUtils.assertGaugeSnapshot;
 import static io.strimzi.kafka.metrics.MetricsUtils.assertInfoSnapshot;
-import static io.strimzi.kafka.metrics.MetricsUtils.newKafkaMetric;
+import static io.strimzi.kafka.metrics.KafkaMetricsUtils.newKafkaMetric;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class KafkaCollectorTest {

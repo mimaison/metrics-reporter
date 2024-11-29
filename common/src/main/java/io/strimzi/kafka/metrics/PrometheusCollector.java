@@ -15,8 +15,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Prometheus Collector to store and export metrics retrieved by {@link KafkaClientPrometheusMetricsReporter}
- * and {@link YammerPrometheusMetricsReporter}.
+ * Prometheus Collector to store and export metrics retrieved by {@link MetricsCollector} instances
  */
 public class PrometheusCollector implements MultiCollector {
 

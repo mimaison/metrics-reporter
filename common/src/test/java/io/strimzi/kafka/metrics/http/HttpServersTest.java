@@ -11,9 +11,7 @@ import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class HttpServersTest {
 
@@ -21,16 +19,16 @@ public class HttpServersTest {
 
     @Test
     public void testLifecycle() throws IOException {
-        Listener listener1 = Listener.parseListener("http://localhost:0");
+        Listener listener1 = Listener.parseListener("", "http://localhost:0");
         HttpServers.ServerCounter server1 = HttpServers.getOrCreate(listener1, registry);
         assertTrue(listenerStarted(listener1.host, server1.port()));
 
-        Listener listener2 = Listener.parseListener("http://localhost:0");
+        Listener listener2 = Listener.parseListener("", "http://localhost:0");
         HttpServers.ServerCounter server2 = HttpServers.getOrCreate(listener2, registry);
         assertTrue(listenerStarted(listener2.host, server2.port()));
         assertSame(server1, server2);
 
-        Listener listener3 = Listener.parseListener("http://127.0.0.1:0");
+        Listener listener3 = Listener.parseListener("", "http://127.0.0.1:0");
         HttpServers.ServerCounter server3 = HttpServers.getOrCreate(listener3, registry);
         assertTrue(listenerStarted(listener3.host, server3.port()));
 

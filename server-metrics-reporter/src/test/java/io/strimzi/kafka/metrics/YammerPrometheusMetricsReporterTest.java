@@ -34,7 +34,7 @@ public class YammerPrometheusMetricsReporterTest {
         collector = new PrometheusCollector();
         registry.register(collector);
         configs = new Properties();
-        configs.put(PrometheusMetricsReporterConfig.LISTENER_CONFIG, "http://:0");
+        configs.put(ServerMetricsReporterConfig.LISTENER_CONFIG, "http://:0");
         for (Map.Entry<MetricName, Metric> entry : Metrics.defaultRegistry().allMetrics().entrySet()) {
             Metrics.defaultRegistry().removeMetric(entry.getKey());
         }
@@ -42,8 +42,8 @@ public class YammerPrometheusMetricsReporterTest {
 
     @Test
     public void testLifeCycle() throws Exception {
-        YammerPrometheusMetricsReporter reporter = new YammerPrometheusMetricsReporter(registry, collector);
-        configs.put(PrometheusMetricsReporterConfig.ALLOWLIST_CONFIG, "group_type.*");
+        BrokerYammerPrometheusMetricsReporter reporter = new BrokerYammerPrometheusMetricsReporter(registry, collector);
+        configs.put(ServerMetricsReporterConfig.ALLOWLIST_CONFIG, "group_type.*");
         reporter.init(new VerifiableProperties(configs));
 
         HttpServers.ServerCounter httpServer = null;
@@ -74,8 +74,8 @@ public class YammerPrometheusMetricsReporterTest {
 
     @Test
     public void testCreateMultipleInstances() {
-        YammerPrometheusMetricsReporter reporter = new YammerPrometheusMetricsReporter();
-        assertThrows(IllegalStateException.class, YammerPrometheusMetricsReporter::new);
+        new BrokerYammerPrometheusMetricsReporter();
+        assertThrows(IllegalStateException.class, BrokerYammerPrometheusMetricsReporter::new);
     }
 
     private Counter newCounter(String group, String type, String name) {

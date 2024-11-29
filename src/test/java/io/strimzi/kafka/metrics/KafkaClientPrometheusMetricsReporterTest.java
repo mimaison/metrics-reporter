@@ -22,12 +22,12 @@ import static io.strimzi.kafka.metrics.MetricsUtils.newKafkaMetric;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class KafkaPrometheusMetricsReporterTest {
+public class KafkaClientPrometheusMetricsReporterTest {
 
-    private final Map<String, String> labels = Collections.singletonMap("key", "value");
-    private Map<String, String> configs;
-    private PrometheusRegistry registry;
-    private KafkaCollector kafkaCollector;
+    final Map<String, String> labels = Collections.singletonMap("key", "value");
+    Map<String, String> configs;
+    PrometheusRegistry registry;
+    KafkaCollector kafkaCollector;
 
     @BeforeEach
     public void setup() {
@@ -41,7 +41,7 @@ public class KafkaPrometheusMetricsReporterTest {
 
     @Test
     public void testLifeCycle() throws Exception {
-        KafkaPrometheusMetricsReporter reporter = new KafkaPrometheusMetricsReporter(registry, kafkaCollector);
+        KafkaClientPrometheusMetricsReporter reporter = new KafkaClientPrometheusMetricsReporter(registry, kafkaCollector);
         configs.put(PrometheusMetricsReporterConfig.ALLOWLIST_CONFIG, "kafka_server_group_name.*");
         reporter.configure(configs);
         reporter.contextChange(new KafkaMetricsContext("kafka.server"));
@@ -77,14 +77,14 @@ public class KafkaPrometheusMetricsReporterTest {
 
     @Test
     public void testMultipleReporters() throws Exception {
-        KafkaPrometheusMetricsReporter reporter1 = new KafkaPrometheusMetricsReporter(registry, kafkaCollector);
+        KafkaClientPrometheusMetricsReporter reporter1 = new KafkaClientPrometheusMetricsReporter(registry, kafkaCollector);
         reporter1.configure(configs);
         reporter1.contextChange(new KafkaMetricsContext("kafka.server"));
         Optional<Integer> port1 = reporter1.getPort();
         assertTrue(port1.isPresent());
         assertEquals(0, getMetrics(port1.get()).size());
 
-        KafkaPrometheusMetricsReporter reporter2 = new KafkaPrometheusMetricsReporter(registry, kafkaCollector);
+        KafkaClientPrometheusMetricsReporter reporter2 = new KafkaClientPrometheusMetricsReporter(registry, kafkaCollector);
         reporter2.configure(configs);
         reporter2.contextChange(new KafkaMetricsContext("kafka.server"));
         Optional<Integer> port2 = reporter1.getPort();

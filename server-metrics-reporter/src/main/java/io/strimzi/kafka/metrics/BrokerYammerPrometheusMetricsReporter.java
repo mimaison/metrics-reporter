@@ -21,69 +21,79 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * KafkaMetricsReporter to export Kafka broker metrics in the Prometheus format.
  */
-public class YammerPrometheusMetricsReporter implements KafkaMetricsReporter, MetricsRegistryListener {
+public class BrokerYammerPrometheusMetricsReporter extends AbstractReporter implements KafkaMetricsReporter, MetricsRegistryListener {
 
-    private static final Logger LOG = LoggerFactory.getLogger(YammerPrometheusMetricsReporter.class);
-    private static YammerPrometheusMetricsReporter INSTANCE;
+    private static final Logger LOG = LoggerFactory.getLogger(BrokerYammerPrometheusMetricsReporter.class);
+    private static BrokerYammerPrometheusMetricsReporter INSTANCE;
 
     private final PrometheusRegistry registry;
     private final YammerCollector yammerCollector;
     @SuppressFBWarnings({"UWF_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR"}) // This field is initialized in the init method
-    /* test */ PrometheusMetricsReporterConfig config;
+    /* test */ ServerMetricsReporterConfig config;
 
-    public static YammerPrometheusMetricsReporter getInstance() {
+    public static BrokerYammerPrometheusMetricsReporter getInstance() {
         return INSTANCE;
     }
 
     /**
      * Constructor
      */
-    public YammerPrometheusMetricsReporter() {
+    public BrokerYammerPrometheusMetricsReporter() {
         if (INSTANCE != null) {
-            throw new IllegalStateException("Cannot create multiple instance of YammerPrometheusMetricsReporter");
+            throw new IllegalStateException("Cannot create multiple instances of BrokerYammerPrometheusMetricsReporter");
         }
         INSTANCE = this;
         registry = PrometheusRegistry.defaultRegistry;
         yammerCollector = YammerCollector.getCollector(PrometheusCollector.register(registry));
+        yammerCollector.addReporter(this);
     }
 
     // for testing
-    YammerPrometheusMetricsReporter(PrometheusRegistry registry, PrometheusCollector prometheusCollector) {
+    BrokerYammerPrometheusMetricsReporter(PrometheusRegistry registry, PrometheusCollector prometheusCollector) {
         this.registry = registry;
         yammerCollector = YammerCollector.getCollector(prometheusCollector);
+        yammerCollector.addReporter(this);
     }
 
     @Override
     public void init(VerifiableProperties props) {
-        config = new PrometheusMetricsReporterConfig(props.props(), registry);
+        config = new ServerMetricsReporterConfig(props.props(), registry);
         for (MetricsRegistry yammerRegistry : Arrays.asList(KafkaYammerMetrics.defaultRegistry(), Metrics.defaultRegistry())) {
             yammerRegistry.addListener(this);
         }
-        LOG.debug("YammerPrometheusMetricsReporter configured with {}", config);
+        LOG.debug("BrokerYammerPrometheusMetricsReporter configured with {}", config);
     }
 
     @Override
     public void onMetricAdded(MetricName name, Metric metric) {
         String prometheusName = YammerMetricWrapper.prometheusName(name);
-        if (!config.isAllowed(prometheusName)) {
-            LOG.trace("Ignoring metric {} as it does not match the allowlist", prometheusName);
-        } else {
-            MetricWrapper metricWrapper = new YammerMetricWrapper(prometheusName, name.getScope(), metric, name.getName());
-            yammerCollector.addMetric(name, metricWrapper);
-        }
+        MetricWrapper metricWrapper = new YammerMetricWrapper(prometheusName, name.getScope(), metric, name.getName());
+        addMetric(name, metricWrapper);
     }
 
     @Override
     public void onMetricRemoved(MetricName name) {
-        yammerCollector.removeMetric(name);
+        removeMetric(name);
     }
 
 
     public void reconfigure(Map<String, ?> configs) {
         config.reconfigure(configs);
+        updateAllowedMetrics();
+    }
+
+    @Override
+    protected Pattern allowlist() {
+        return config.allowlist();
+    }
+
+    @Override
+    protected boolean isReconfigurable() {
+        return true;
     }
 }

@@ -4,10 +4,10 @@
  */
 package io.strimzi.kafka.metrics.integration;
 
-import io.strimzi.kafka.metrics.KafkaPrometheusMetricsReporter;
+import io.strimzi.kafka.metrics.BrokerKafkaPrometheusMetricsReporter;
+import io.strimzi.kafka.metrics.BrokerYammerPrometheusMetricsReporter;
 import io.strimzi.kafka.metrics.MetricsUtils;
-import io.strimzi.kafka.metrics.PrometheusMetricsReporterConfig;
-import io.strimzi.kafka.metrics.YammerPrometheusMetricsReporter;
+import io.strimzi.kafka.metrics.ServerMetricsReporterConfig;
 import io.strimzi.kafka.metrics.http.Listener;
 import io.strimzi.test.container.StrimziKafkaContainer;
 import org.junit.jupiter.api.AfterEach;
@@ -30,7 +30,7 @@ public class TestBrokerMetricsIT {
     private static final String VERSION = "1.0.0-SNAPSHOT";
     private static final String REPORTER_JARS = "target/metrics-reporter-" + VERSION + "/metrics-reporter-" + VERSION + "/libs/";
     private static final String MOUNT_PATH = "/opt/strimzi/metrics-reporter/";
-    private static final int PORT = Listener.parseListener(PrometheusMetricsReporterConfig.LISTENER_CONFIG_DEFAULT).port;
+    private static final int PORT = Listener.parseListener(ServerMetricsReporterConfig.LISTENER_CONFIG, ServerMetricsReporterConfig.LISTENER_CONFIG_DEFAULT).port;
 
     private Map<String, String> configs;
     private StrimziKafkaContainer broker;
@@ -38,8 +38,8 @@ public class TestBrokerMetricsIT {
     @BeforeEach
     public void setUp() {
         configs = new HashMap<>();
-        configs.put("metric.reporters", KafkaPrometheusMetricsReporter.class.getName());
-        configs.put("kafka.metrics.reporters", YammerPrometheusMetricsReporter.class.getName());
+        configs.put("metric.reporters", BrokerKafkaPrometheusMetricsReporter.class.getName());
+        configs.put("kafka.metrics.reporters", BrokerYammerPrometheusMetricsReporter.class.getName());
 
         broker = new StrimziKafkaContainer()
                 .withNodeId(0)

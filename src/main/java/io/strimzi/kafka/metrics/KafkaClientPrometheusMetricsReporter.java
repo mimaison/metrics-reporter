@@ -27,29 +27,29 @@ import java.util.Set;
  * MetricsReporter implementation that expose Kafka metrics in the Prometheus format.
  * This can be used by Kafka brokers and clients.
  */
-public class KafkaPrometheusMetricsReporter implements MetricsReporter {
+public class KafkaClientPrometheusMetricsReporter extends AbstractReporter implements MetricsReporter {
 
-    private static final Logger LOG = LoggerFactory.getLogger(KafkaPrometheusMetricsReporter.class);
+    private static final Logger LOG = LoggerFactory.getLogger(KafkaClientPrometheusMetricsReporter.class);
 
     private final PrometheusRegistry registry;
     private final KafkaCollector kafkaCollector;
     @SuppressFBWarnings({"UWF_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR"}) // This field is initialized in the configure method
-    private PrometheusMetricsReporterConfig config;
+    PrometheusMetricsReporterConfig config;
     @SuppressFBWarnings({"UWF_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR"}) // This field is initialized in the configure method
     private Optional<HttpServers.ServerCounter> httpServer;
     @SuppressFBWarnings({"UWF_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR"}) // This field is initialized in the contextChange method
-    private String prefix;
+    String prefix;
 
     /**
      * Constructor
      */
-    public KafkaPrometheusMetricsReporter() {
+    public KafkaClientPrometheusMetricsReporter() {
         registry = PrometheusRegistry.defaultRegistry;
         kafkaCollector = KafkaCollector.getCollector(PrometheusCollector.register(registry));
     }
 
     // for testing
-    KafkaPrometheusMetricsReporter(PrometheusRegistry registry, KafkaCollector kafkaCollector) {
+    KafkaClientPrometheusMetricsReporter(PrometheusRegistry registry, KafkaCollector kafkaCollector) {
         this.registry = registry;
         this.kafkaCollector = kafkaCollector;
     }
@@ -58,7 +58,7 @@ public class KafkaPrometheusMetricsReporter implements MetricsReporter {
     public void configure(Map<String, ?> map) {
         config = new PrometheusMetricsReporterConfig(map, registry);
         httpServer = config.startHttpServer();
-        LOG.debug("KafkaPrometheusMetricsReporter configured with {}", config);
+        LOG.debug("KafkaClientPrometheusMetricsReporter configured with {}", config);
     }
 
     @Override

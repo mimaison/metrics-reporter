@@ -17,7 +17,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
@@ -25,9 +24,9 @@ import java.util.stream.Collectors;
 /**
 * Configuration for the PrometheusMetricsReporter implementation.
 */
-public class PrometheusMetricsReporterConfig extends AbstractConfig {
+public class ClientMetricsReporterConfig extends AbstractConfig {
 
-    private static final Logger LOG = LoggerFactory.getLogger(PrometheusMetricsReporterConfig.class);
+    private static final Logger LOG = LoggerFactory.getLogger(ClientMetricsReporterConfig.class);
     private static final String CONFIG_PREFIX = "prometheus.metrics.reporter.";
 
     /**
@@ -63,17 +62,15 @@ public class PrometheusMetricsReporterConfig extends AbstractConfig {
     public static final String ALLOWLIST_CONFIG_DEFAULT = ".*";
     private static final String ALLOWLIST_CONFIG_DOC = "A comma separated list of regex patterns to specify the metrics to collect.";
 
-    private static final ConfigDef CONFIG_DEF = new ConfigDef()
+    static final ConfigDef CONFIG_DEF = new ConfigDef()
             .define(LISTENER_CONFIG, ConfigDef.Type.STRING, LISTENER_CONFIG_DEFAULT, new Listener.ListenerValidator(), ConfigDef.Importance.HIGH, LISTENER_CONFIG_DOC)
             .define(ALLOWLIST_CONFIG, ConfigDef.Type.LIST, ALLOWLIST_CONFIG_DEFAULT, ConfigDef.Importance.HIGH, ALLOWLIST_CONFIG_DOC)
             .define(LISTENER_ENABLE_CONFIG, ConfigDef.Type.BOOLEAN, LISTENER_ENABLE_CONFIG_DEFAULT, ConfigDef.Importance.HIGH, LISTENER_ENABLE_CONFIG_DOC);
 
-    public static final Set<String> RECONFIGURABLES = Set.of(ALLOWLIST_CONFIG);
-
-    private final Listener listener;
-    private final boolean listenerEnabled;
-    private final PrometheusRegistry registry;
-    private Pattern allowlist;
+    final Listener listener;
+    final boolean listenerEnabled;
+    final PrometheusRegistry registry;
+    final Pattern allowlist;
 
     /**
      * Constructor.
@@ -81,17 +78,12 @@ public class PrometheusMetricsReporterConfig extends AbstractConfig {
      * @param props the configuration properties.
      * @param registry the metrics registry
      */
-    public PrometheusMetricsReporterConfig(Map<?, ?> props, PrometheusRegistry registry) {
+    public ClientMetricsReporterConfig(Map<?, ?> props, PrometheusRegistry registry) {
         super(CONFIG_DEF, props);
-        this.listener = Listener.parseListener(getString(LISTENER_CONFIG));
+        this.listener = Listener.parseListener(LISTENER_CONFIG, getString(LISTENER_CONFIG));
         this.allowlist = compileAllowlist(getList(ALLOWLIST_CONFIG));
         this.listenerEnabled = getBoolean(LISTENER_ENABLE_CONFIG);
         this.registry = registry;
-    }
-
-    public void reconfigure(Map<String, ?> props) {
-        AbstractConfig abstractConfig = new AbstractConfig(CONFIG_DEF, props);
-        allowlist = compileAllowlist(abstractConfig.getList(ALLOWLIST_CONFIG));
     }
 
     /**
@@ -104,7 +96,11 @@ public class PrometheusMetricsReporterConfig extends AbstractConfig {
         return allowlist.matcher(name).matches();
     }
 
-    private Pattern compileAllowlist(List<String> allowlist) {
+    public Pattern allowlist() {
+        return allowlist;
+    }
+
+    Pattern compileAllowlist(List<String> allowlist) {
         for (String entry : allowlist) {
             try {
                 Pattern.compile(entry);
@@ -136,7 +132,7 @@ public class PrometheusMetricsReporterConfig extends AbstractConfig {
 
     @Override
     public String toString() {
-        return "PrometheusMetricsReporterConfig{" +
+        return "ClientMetricsReporterConfig{" +
                 ", listener=" + listener +
                 ", listenerEnabled=" + listenerEnabled +
                 ", allowlist=" + allowlist +
