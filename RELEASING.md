@@ -44,9 +44,12 @@ Close the current GitHub [milestone](https://github.com/strimzi/metrics-reporter
 
 ## Create the GitHub Release
 
-From the tag, create a release. Attach the Maven artifacts and add the Strimzi sections.
+From the tag, create a release.
 
-Be sure to set "Set as a pre-release" for release candidates.
+- Add the Strimzi sections (`Main changes since`, etc) to the release notes
+- Attach the archives (.tar.gz and .zip) downloaded from Maven, for example: https://repo1.maven.org/maven2/io/strimzi/server-metrics-reporter/0.3.0-rc1/server-metrics-reporter-0.3.0-rc1.tar.gz
+- Rename the archives to have the following format `metrics-reporter-<VERSION>.<EXTENSION>`
+- Be sure to set "Set as a pre-release" for release candidates
 
 ## Post announcements
 
