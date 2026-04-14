@@ -4,6 +4,7 @@
  */
 package io.strimzi.kafka.metrics.prometheus;
 
+import io.strimzi.kafka.metrics.prometheus.kafka.KafkaMetricWrapper;
 import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.common.metrics.KafkaMetric;
 import org.apache.kafka.common.metrics.KafkaMetricsContext;
@@ -72,5 +73,31 @@ public class ServerKafkaMetricsReporterTest extends ClientMetricsReporterTest {
             configs.put(ServerMetricsReporterConfig.ALLOWLIST_CONFIG, "[\\]");
             assertThrows(ConfigException.class, () -> reporter.validateReconfiguration(configs));
         }
+    }
+
+    @Test
+    public void testHelpMessageInOutput() throws Exception {
+        ServerKafkaMetricsReporter reporter = new ServerKafkaMetricsReporter(registry, kafkaCollector);
+        configs.put(ServerMetricsReporterConfig.ALLOWLIST_CONFIG, "kafka_server_group_name.*");
+        reporter.configure(configs);
+        reporter.contextChange(new KafkaMetricsContext("kafka.server"));
+
+        int port = reporter.getPort().orElseThrow();
+
+        // Add a metric that matches the allowlist
+        KafkaMetric metric = newKafkaMetric("name", "group", (config, now) -> 0, LABELS);
+        reporter.metricChange(metric);
+
+        // Get metrics output including comments
+        List<String> metrics = getMetrics(port, true);
+
+        String expectedPrometheusName = KafkaMetricWrapper.prometheusName("kafka.server", metric.metricName());
+
+        // Verify that the output contains the "Use prometheusMetricName in allowlist" help line
+        boolean foundHelpLine = metrics.stream()
+                .anyMatch(line -> line.startsWith("# HELP") && line.contains("Use " + expectedPrometheusName + " in allowlist"));
+        assertTrue(foundHelpLine, "Expected to find '# HELP' line with 'Use " + expectedPrometheusName + "in allowlist' message");
+
+        reporter.close();
     }
 }

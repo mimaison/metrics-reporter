@@ -7,6 +7,7 @@ package io.strimzi.kafka.metrics.prometheus;
 import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import io.strimzi.kafka.metrics.prometheus.common.PrometheusCollector;
 import io.strimzi.kafka.metrics.prometheus.kafka.KafkaCollector;
+import io.strimzi.kafka.metrics.prometheus.kafka.KafkaMetricWrapper;
 import org.apache.kafka.common.metrics.KafkaMetric;
 import org.apache.kafka.common.metrics.KafkaMetricsContext;
 import org.junit.jupiter.api.BeforeEach;
@@ -124,6 +125,32 @@ public class ClientMetricsReporterTest {
             }
             assertThrows(IllegalStateException.class, () -> reporter.contextChange(new KafkaMetricsContext("other")));
         }
+    }
+
+    @Test
+    public void testHelpMessageInOutput() throws Exception {
+        ClientMetricsReporter reporter = new ClientMetricsReporter(registry, kafkaCollector);
+        configs.put(ClientMetricsReporterConfig.ALLOWLIST_CONFIG, "kafka_producer_group_name.*");
+        reporter.configure(configs);
+        reporter.contextChange(new KafkaMetricsContext("kafka.producer"));
+
+        int port = reporter.getPort().orElseThrow();
+
+        // Add a metric that matches the allowlist
+        KafkaMetric metric = newKafkaMetric("name", "group", (config, now) -> 0, LABELS);
+        reporter.metricChange(metric);
+
+        // Get metrics  including comments
+        List<String> metrics = getMetrics(port, true);
+
+        String expectedPrometheusName = KafkaMetricWrapper.prometheusName("kafka.producer", metric.metricName());
+
+        // Verify that the metrics contains the "Use prometheusMetricName in allowlist" help line
+        boolean foundHelpLine = metrics.stream()
+                .anyMatch(line -> line.startsWith("# HELP") && line.contains("Use " + expectedPrometheusName + " in allowlist"));
+        assertTrue(foundHelpLine, "Expected to find '# HELP' line with 'Use " + expectedPrometheusName + "in allowlist' message");
+
+        reporter.close();
     }
 
 }

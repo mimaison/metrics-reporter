@@ -102,6 +102,41 @@ public class YammerCollectorTest {
         assertInfoSnapshot(snapshot, labels, "name", nonNumericValue);
     }
 
+    @Test
+    public void testHelpMessage() {
+        AbstractReporter reporter = new AbstractReporter() {
+            @Override
+            protected Pattern allowlist() {
+                return Pattern.compile(".*");
+            }
+        };
+        collector.addReporter(reporter);
+
+        // Test numeric metric
+        MetricName numericMetricName = new MetricName("group", "type", "testMetric", scope);
+        MetricWrapper numericMetricWrapper = newYammerMetricWrapper(numericMetricName, () -> 1);
+        reporter.addMetric(numericMetricName, numericMetricWrapper);
+
+        List<? extends MetricSnapshot> metrics = collector.collect();
+        assertEquals(1, metrics.size());
+
+        String expectedHelpMessage = "Use " + numericMetricWrapper.prometheusName() + " in allowlist";
+        assertEquals(expectedHelpMessage, metrics.get(0).getMetadata().getHelp());
+
+        reporter.removeMetric(numericMetricName);
+
+        // Test non-numeric metric
+        MetricName stringMetricName = new MetricName("group", "type", "stringMetric", scope);
+        MetricWrapper stringMetricWrapper = newYammerMetricWrapper(stringMetricName, () -> "testValue");
+        reporter.addMetric(stringMetricName, stringMetricWrapper);
+
+        metrics = collector.collect();
+        assertEquals(1, metrics.size());
+
+        expectedHelpMessage = "Use " + stringMetricWrapper.prometheusName() + " in allowlist";
+        assertEquals(expectedHelpMessage, metrics.get(0).getMetadata().getHelp());
+    }
+
     private <T> MetricWrapper newYammerMetricWrapper(MetricName metricName, Supplier<T> valueSupplier) {
         Gauge<T> gauge = newYammerMetric(valueSupplier);
         String prometheusName = YammerMetricWrapper.prometheusName(metricName);

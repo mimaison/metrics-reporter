@@ -114,6 +114,42 @@ public class KafkaCollectorTest {
         assertEquals(0, metrics.size());
     }
 
+    @Test
+    public void testHelpMessage() {
+        KafkaCollector collector = new KafkaCollector();
+        AbstractReporter reporter = new AbstractReporter() {
+            @Override
+            protected Pattern allowlist() {
+                return Pattern.compile(".*");
+            }
+        };
+        collector.addReporter(reporter);
+
+        // Test numeric metric
+        MetricName numericMetricName = new MetricName("testMetric", "testGroup", "description", tagsMap);
+        MetricWrapper metricWrapper = newKafkaMetricWrapper(numericMetricName, (config, now) -> 1);
+        reporter.addMetric(numericMetricName, metricWrapper);
+
+        List<? extends MetricSnapshot> metrics = collector.collect();
+        assertEquals(1, metrics.size());
+
+        String expectedHelpMessage = "Use " + metricWrapper.prometheusName() + " in allowlist";
+        assertEquals(expectedHelpMessage, metrics.get(0).getMetadata().getHelp());
+
+        reporter.removeMetric(numericMetricName);
+
+        // Test non-numeric metric
+        MetricName stringMetricName = new MetricName("stringMetric", "testGroup", "description", tagsMap);
+        MetricWrapper stringMetricWrapper = newKafkaMetricWrapper(stringMetricName, (config, now) -> "testValue");
+        reporter.addMetric(stringMetricName, stringMetricWrapper);
+
+        metrics = collector.collect();
+        assertEquals(1, metrics.size());
+
+        expectedHelpMessage = "Use " + stringMetricWrapper.prometheusName() + " in allowlist";
+        assertEquals(expectedHelpMessage, metrics.get(0).getMetadata().getHelp());
+    }
+
     private MetricWrapper newKafkaMetricWrapper(MetricName metricName, Gauge<?> gauge) {
         KafkaMetric kafkaMetric = newKafkaMetric(metricName.name(), metricName.group(), gauge, metricName.tags());
         String prometheusName = KafkaMetricWrapper.prometheusName(METRIC_PREFIX, metricName);
